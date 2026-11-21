@@ -1,6 +1,6 @@
 """Collect CC-licensed instrumental music from Wikimedia (via Openverse) and cut it into ~90 s beds.
 Each bed is logged in audio_lib/CREDITS.json with its license and source (credit CC-BY tracks in the video description)."""
-import json, os, subprocess, urllib.request, urllib.parse, time
+import json, os, subprocess, urllib.request, urllib.error, urllib.parse, time
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'audio_lib'); CRED = os.path.join(ROOT, 'CREDITS.json'); os.makedirs(ROOT + '/music', exist_ok=True)
 credits = json.load(open(CRED)) if os.path.exists(CRED) else {}
 UA = {'User-Agent': 'geo-style-pipeline/1.0'}
@@ -18,8 +18,15 @@ for q in QUERIES:
         t = r['title'].lower(); d = (r.get('duration') or 0) / 1000
         if any(b in t for b in BAD) or r['foreign_landing_url'] in have or d < 120 or d > 5000: continue
         raw = os.path.join(ROOT, 'music', 'tmp.src')
-        try: open(raw, 'wb').write(urllib.request.urlopen(urllib.request.Request(r['url'], headers=UA), timeout=180).read())
-        except Exception as e: print('dl fail', r['title'][:40], e); continue
+        data = None
+        for wait in (8, 30, 90):  # Wikimedia rate-limits fast downloads (HTTP 429): pause, then back off
+            time.sleep(wait)
+            try: data = urllib.request.urlopen(urllib.request.Request(r['url'], headers=UA), timeout=180).read(); break
+            except urllib.error.HTTPError as e:
+                if e.code != 429: print('dl fail', r['title'][:40], e.code); break
+            except Exception as e: print('dl fail', r['title'][:40], e); break
+        if data is None: print('dl fail', r['title'][:40]); continue
+        open(raw, 'wb').write(data)
         # cut up to 3 beds of 95 s from different parts, each with fades; skip quiet parts
         n = 0
         for start in [d * 0.12, d * 0.45, d * 0.75]:
