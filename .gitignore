@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 projects/*/out/
 .DS_Store
+
+# downloaded by setup.sh
+engine/data/ne/
+engine/data/src/
