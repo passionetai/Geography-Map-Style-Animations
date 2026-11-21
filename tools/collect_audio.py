@@ -24,6 +24,7 @@ def grab(cat, rec, folder, maxd=None, mind=None):
     import time; time.sleep(2)  # be polite to hosts
     if (rec.get('duration') or 0) and maxd and rec['duration'] / 1000 > maxd: return False
     if (rec.get('duration') or 0) and mind and rec['duration'] / 1000 < mind: return False
+    if folder.endswith('sfx') and (rec.get('duration') or 0) and rec['duration'] < 80: return False  # near-empty clips
     name = f"{cat}_{rec['id'][:8]}"; raw = os.path.join(folder, name + '.src')
     try: open(raw, 'wb').write(fetch(rec['url']).read())
     except Exception as e: return False
@@ -34,12 +35,13 @@ def grab(cat, rec, folder, maxd=None, mind=None):
     if not ok or d == 0 or (maxd and folder.endswith('sfx') and d > maxd * 1.2) or (mind and d < mind):
         if os.path.exists(out): os.remove(out); return False
     credits[os.path.basename(out)] = dict(title=rec['title'], creator=rec.get('creator'), license=rec['license'] + ' ' + (rec.get('license_version') or ''), source=rec.get('foreign_landing_url'), seconds=round(d, 2), category=cat)
+    json.dump(credits, open(CRED, 'w'), indent=1)  # save as we go so a timeout keeps credits
     return True
 for cat, (qs, maxd, n) in SFX.items():
     have = sum(1 for v in credits.values() if v['category'] == cat)
     for q in qs:
         if have >= n: break
-        for rec in api(q, 'cc0', '&length=short'):
+        for rec in api(q, 'cc0', '&length=shortest'):  # 'short' is 30s-2min on Openverse; SFX need <30s
             if have >= n: break
             if any(v['source'] == rec.get('foreign_landing_url') for v in credits.values()): continue
             if grab(cat, rec, os.path.join(ROOT, 'sfx'), maxd): have += 1; print(cat, rec['title'])
