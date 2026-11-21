@@ -11,3 +11,4 @@ projects/*/out/
 # downloaded by setup.sh
 engine/data/ne/
 engine/data/src/
+audio_lib/ambience/
